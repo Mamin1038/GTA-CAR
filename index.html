@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>GTA 5 Car Manager - Final</title>
+    <style>
+        :root { --main-bg: #121212; --card-bg: #1e1e1e; --blue: #00a2ff; --red: #ff4444; --green: #28a745; --text: #e0e0e0; }
+        body { background: var(--main-bg); color: var(--text); font-family: 'Segoe UI', sans-serif; padding: 20px; }
+        .header { border-bottom: 2px solid var(--blue); padding-bottom: 15px; margin-bottom: 30px; }
+        .header h2 { color: var(--blue); margin: 0; }
+        
+        .brand-section { margin-bottom: 30px; background: var(--card-bg); padding: 20px; border-radius: 12px; }
+        .brand-title { font-size: 1.4em; margin-bottom: 15px; color: #fff; font-weight: bold; border-left: 4px solid var(--blue); padding-left: 12px; }
+        .car-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+        
+        .car-card { 
+            background: #2a2a2a; padding: 12px; border-radius: 8px; 
+            display: flex; justify-content: space-between; align-items: center;
+            border: 1px solid #333; transition: 0.2s;
+        }
+        /* 튕김 차량(취소선) 스타일 */
+        .car-card.excluded { opacity: 0.35; background: #1a1a1a; border-color: var(--red); }
+        .car-card.excluded .car-id, .car-card.excluded .car-name { text-decoration: line-through; color: #777; cursor: not-allowed; }
+
+        .car-info { display: flex; flex-direction: column; overflow: hidden; }
+        .car-name { font-size: 0.85em; color: #aaa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .car-id { color: var(--blue); font-weight: bold; cursor: pointer; text-decoration: underline; font-size: 1.1em; }
+        
+        button { padding: 5px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8em; font-weight: bold; min-width: 80px; }
+        .btn-exclude { background: #333; color: var(--red); border: 1px solid var(--red); }
+        .btn-restore { background: var(--green); color: white; }
+
+        .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: var(--blue); color: white; padding: 10px 30px; border-radius: 25px; display: none; z-index: 100; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h2>🏎️ GTA 5 통합 차량 리스트 (100+대)</h2>
+        <p>파란색 ID 클릭 시 복사. 튕기는 차는 붉은 테두리와 취소선 표시됨</p>
+    </div>
+
+    <div id="manager-root"></div>
+    <div id="toast" class="toast">복사 완료!</div>
+
+    <script>
+        const initialData = {
+            "Lamborghini": [
+                { id: "lp610", name: "Huracan LP610-4 Spyder", active: false },
+                { id: "zentorno", name: "Pegassi Zentorno", active: false },
+                { id: "revueltosec", name: "Revuelto 2024", active: true },
+                { id: "lbperfs", name: "Huracan Performante Spyder LW", active: true },
+                { id: "lb750sv", name: "Aventador LP750SV LW", active: true },
+                { id: "lamboavj", name: "Aventador SVJ", active: true },
+                { id: "huracanst", name: "Huracan Super Trofeo", active: true },
+                { id: "lambose", name: "Sesto Elemento", active: true },
+                { id: "sxtrgurus22", name: "Urus 2022 Performante + LBWK", active: true },
+                { id: "gallardo05", name: "Gallardo Spyder 2005", active: true }
+            ],
+            "Ferrari / Italian": [
+                { id: "cali57", name: "250 GT California Spyder", active: false },
+                { id: "F458", name: "458 Italia", active: false },
+                { id: "turismor", name: "Grotti Turismo R", active: false },
+                { id: "f8spider", name: "F8 Spider", active: true },
+                { id: "fsf90xx", name: "SF90xx Stradale 2024", active: true },
+                { id: "f812", name: "812 Superfast", active: true },
+                { id: "roma20", name: "Roma 2020", active: true },
+                { id: "laferrari", name: "LaFerrari", active: true }
+            ],
+            "BMW / Mercedes / Audi": [
+                { id: "m4csr3", name: "BMW M4 Competition G82", active: false },
+                { id: "bmwi8", name: "BMW i8 Roadster", active: false },
+                { id: "cls63s", name: "Mercedes-Amg CLS 63 S", active: false },
+                { id: "amggtsmansory", name: "Mercedes AMG GT S Mansory", active: false },
+                { id: "a6fnbodykit", name: "Audi A6 fnbodykit", active: false },
+                { id: "tw_bm2w4603", name: "BMW M3 E46 2003", active: true },
+                { id: "2019M5", name: "BMW M5 F90 Competition", active: true },
+                { id: "16m5", name: "BMW M5 Touring", active: true },
+                { id: "gt63s", name: "Mercedes AMG GT63S", active: true },
+                { id: "x6m", name: "BMW X6 M", active: true },
+                { id: "m8gte", name: "BMW M8 GTE", active: true },
+                { id: "rmodmi8", name: "BMW I8 Roadster AC Schnitzer", active: true },
+                { id: "macla", name: "Mercedes-Benz A-Class", active: true },
+                { id: "722s", name: "Mercedes-Benz SLR 722s Roadster", active: true },
+                { id: "S5", name: "Audi S5", active: true }
+            ],
+            "Japanese (Nissan / Toyota / Mazda / etc)": [
+                { id: "rrgt34", name: "Custom Nissan GT34", active: false },
+                { id: "nismo20", name: "Nissan GT-R Nismo 2020", active: false },
+                { id: "rx811", name: "Mazda RX-8 R3 2011", active: false },
+                { id: "dk350z", name: "Nissan 350Z Veilside", active: true },
+                { id: "silvias15", name: "Nissan Silvia S-15 Spec-R", active: true },
+                { id: "sil80", name: "Nissan 240SX Sileighty", active: true },
+                { id: "a90sh", name: "Toyota Supra A90", active: true },
+                { id: "al18", name: "Toyota Alphard 2018", active: true },
+                { id: "gst862", name: "Toyota GT86 2013", active: true },
+                { id: "evovaris", name: "Mitsubishi Lancer Evo X", active: true },
+                { id: "sou_wrxwb", name: "Subaru WRX Widebody", active: true },
+                { id: "swift2017", name: "Suzuki Swift Sport 2017", active: true },
+                { id: "mazlex", name: "Mazda MX-5 Miata 1989", active: true },
+                { id: "rx7twerk", name: "Mazda Rx7 Twerk", active: true },
+                { id: "mrx7", name: "Mazda RX-7", active: true },
+                { id: "rxf7", name: "Mazda RX-F7 BLS BN-Sport", active: true },
+                { id: "civic20", name: "Honda Civic Type-R 2020", active: true },
+                { id: "370z16", name: "Nissan 370Z Nismo 2016", active: true },
+                { id: "lx2018", name: "Lexus LX570 2018", active: true },
+                { id: "s2000eu", name: "Honda S2000 Eunoia", active: true },
+                { id: "gsf", name: "Lexus GS F 2019", active: true }
+            ],
+            "American / Muscle": [
+                { id: "playascattyboop", name: "Dodge Charger 392 Scatpack", active: false },
+                { id: "mustang19", name: "Ford Mustang GT", active: false },
+                { id: "raptor19", name: "Ford Raptor 2019", active: false },
+                { id: "c8", name: "Chevrolet Corvette C8", active: true },
+                { id: "theviper96", name: "Dodge Viper GTS 1996", active: true },
+                { id: "gte", name: "Ford GT LM GTE", active: true },
+                { id: "19mustgt", name: "Ford Mustang GT 2019", active: true },
+                { id: "exor", name: "Hennessey Camaro Exorcist ZL1", active: true },
+                { id: "mst", name: "Ford Mustang GT500 NFS", active: true },
+                { id: "gtx", name: "Plymouth GTX", active: true },
+                { id: "domc", name: "Vapid Dominator Classic", active: true },
+                { id: "19gt500", name: "Shelby GT500 2020", active: true },
+                { id: "nbramsrt", name: "Dodge RAM SRT10 2006", active: true },
+                { id: "nextgen", name: "NASCAR Camaro ZL1", active: true },
+                { id: "tw_dcsh18", name: "Challenger SRT Hellcat 2018", active: true }
+            ],
+            "Hyper / Exotic": [
+                { id: "gt295", name: "Porsche 911 GT2 RWB", active: false },
+                { id: "huayrar", name: "Pagani Huayra Roadster", active: false },
+                { id: "contss18", name: "Bentley Continental GT", active: false },
+                { id: "oycfd40", name: "Ruffian 40", active: false },
+                { id: "zondarevo1", name: "Pagani Zonda Revo", active: true },
+                { id: "zondacinque", name: "Pagani Zonda Cinque", active: true },
+                { id: "db11", name: "Aston Martin DB11", active: true },
+                { id: "supersport", name: "Bugatti Veyron Super Sport", active: true },
+                { id: "agerarsc", name: "Koenigsegg Agera RS", active: true },
+                { id: "vantage", name: "Aston Martin Vantage", active: true },
+                { id: "senna", name: "McLaren Senna", active: true },
+                { id: "jes", name: "Koenigsegg Jesko 2020", active: true },
+                { id: "tr22", name: "Tesla Roadster", active: true },
+                { id: "ep9", name: "NIO EP9", active: true },
+                { id: "ts1", name: "Zenvo TS1 GT", active: true },
+                { id: "divo", name: "Bugatti Divo", active: true },
+                { id: "sx25valiant", name: "Aston Martin Valiant 2025", active: true },
+                { id: "mclsxlm", name: "McLaren F1 LM", active: true },
+                { id: "boil", name: "Bugatti Bolide", active: true },
+                { id: "tw_p918s15", name: "Pfister 918 Spyder 2015", active: true }
+            ],
+            "SUV / Utility / Misc": [
+                { id: "nathancountry", name: "Nathan Country Utility", active: false },
+                { id: "z419", name: "Z4 19 Sports", active: false },
+                { id: "humh2", name: "Hummer H2 Pickup", active: true },
+                { id: "xperia38", name: "Mercedes G63 AMG", active: true },
+                { id: "rculi", name: "Rolls-Royce Cullinan 2019", active: true },
+                { id: "wraith", name: "Rolls-Royce Wraith", active: true },
+                { id: "18Velar", name: "Range Rover Velar", active: true },
+                { id: "startechrr1", name: "Range Rover Startech", active: true },
+                { id: "jp12", name: "Jeep Wrangler 2012", active: true },
+                { id: "thar21mg", name: "Mahindra Thar 2021", active: true },
+                { id: "idbuzz25", name: "VW iD Buzz Pro S", active: true },
+                { id: "rezvan2", name: "Rezvani Vengeance", active: true }
+            ]
+        };
+
+        let currentData = initialData;
+
+        function render() {
+            const root = document.getElementById('manager-root');
+            root.innerHTML = '';
+
+            for (const [brand, cars] of Object.entries(currentData)) {
+                const section = document.createElement('div');
+                section.className = 'brand-section';
+                
+                let html = `<div class="brand-title">${brand}</div><div class="car-grid">`;
+                
+                cars.forEach((car, index) => {
+                    const statusClass = car.active ? '' : 'excluded';
+                    const btnLabel = car.active ? '튕김 보고' : '복구';
+                    const btnClass = car.active ? 'btn-exclude' : 'btn-restore';
+
+                    html += `
+                        <div class="car-card ${statusClass}">
+                            <div class="car-info">
+                                <div class="car-id" onclick="${car.active ? `copyId('${car.id}')` : ''}">${car.id}</div>
+                                <div class="car-name">${car.name}</div>
+                            </div>
+                            <button class="${btnClass}" onclick="toggleCar('${brand}', ${index})">${btnLabel}</button>
+                        </div>
+                    `;
+                });
+                
+                html += `</div>`;
+                section.innerHTML = html;
+                root.appendChild(section);
+            }
+        }
+
+        function toggleCar(brand, index) {
+            currentData[brand][index].active = !currentData[brand][index].active;
+            render();
+        }
+
+        function copyId(id) {
+            navigator.clipboard.writeText(id).then(() => {
+                const toast = document.getElementById('toast');
+                toast.style.display = 'block';
+                setTimeout(() => { toast.style.display = 'none'; }, 1000);
+            });
+        }
+
+        render();
+    </script>
+</body>
+</html>
